@@ -246,7 +246,7 @@ package struct LookupPopupView: View {
                 }
             }
             .sheet(item: $pendingNoteDraft) { wrapped in
-                AddNoteView(initialDraft: wrapped.draft) {
+                AddNoteView(initialDraft: wrapped.draft, keepsOpenAfterAdd: false) {
                     pendingNoteDraft = nil
                     onAddedNote?()
                 }
