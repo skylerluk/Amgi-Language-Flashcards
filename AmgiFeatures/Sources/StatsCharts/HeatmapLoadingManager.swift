@@ -97,4 +97,4 @@ struct ReviewCount: Sendable {
 
 // MARK: - Logging
 
-private let logger = Logger(subsystem: "com.amgiapp", category: "heatmap")
+private let logger = Logger(subsystem: "com.skylerluk.amgi", category: "heatmap")

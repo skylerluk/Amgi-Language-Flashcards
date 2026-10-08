@@ -34,3 +34,6 @@ design/
 .build-benchmark/
 
 AmgiApp/*.xcodeproj/
+
+# Local AI API keys bundled into personal builds — never commit
+AmgiApp/Resources/AIKeys.local.plist

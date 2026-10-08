@@ -12,7 +12,7 @@ import Dependencies
 import os
 public import SwiftUI
 
-private let logger = Logger(subsystem: "com.amgiapp.AmgiApp", category: "WatchLogin")
+private let logger = Logger(subsystem: "com.skylerluk.amgi.AmgiApp", category: "WatchLogin")
 
 public struct WatchLoginView: View {
     @Dependency(\.syncClient) private var syncClient

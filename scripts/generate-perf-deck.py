@@ -248,7 +248,7 @@ def main() -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Install into a booted simulator (app must be closed):\n"
-            "  C=$(xcrun simctl get_app_container <udid> com.amgiapp.AmgiApp data)\n"
+            "  C=$(xcrun simctl get_app_container <udid> com.skylerluk.amgi.AmgiApp data)\n"
             '  D="$C/Library/Application Support/AnkiCollection/default"\n'
             '  rm -f "$D"/collection.anki2-wal "$D"/collection.anki2-shm\n'
             '  cp /tmp/amgi-perf.anki2 "$D/collection.anki2"\n'

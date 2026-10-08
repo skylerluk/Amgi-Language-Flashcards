@@ -12,7 +12,7 @@ import Dependencies
 import os
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.amgiapp.AmgiApp", category: "WatchDeckList")
+private let logger = Logger(subsystem: "com.skylerluk.amgi.AmgiApp", category: "WatchDeckList")
 
 struct WatchDeckListView: View {
     @Dependency(\.deckClient) var deckClient

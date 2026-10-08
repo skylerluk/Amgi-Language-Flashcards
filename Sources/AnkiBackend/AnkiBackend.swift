@@ -16,7 +16,7 @@ public final class AnkiBackend: Sendable {
     private let backendPtr: Int64
     private let lock = NSLock()
 
-    private static let perfLog = Logger(subsystem: "com.amgiapp.perf", category: "rpc")
+    private static let perfLog = Logger(subsystem: "com.skylerluk.amgi.perf", category: "rpc")
 
     /// Written during `openCollection` and read from arbitrary threads —
     /// the card asset scheme handler and the watch's review screen among

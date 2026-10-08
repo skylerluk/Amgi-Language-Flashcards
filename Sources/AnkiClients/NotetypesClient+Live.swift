@@ -12,7 +12,7 @@ public import Dependencies
 import Foundation
 import Logging
 
-private let logger = Logger(label: "com.amgiapp.notetypes.client")
+private let logger = Logger(label: "com.skylerluk.amgi.notetypes.client")
 
 extension NotetypesClient: DependencyKey {
     public static let liveValue: Self = {

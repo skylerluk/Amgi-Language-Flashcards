@@ -1,6 +1,6 @@
 name: AmgiApp
 options:
-  bundleIdPrefix: com.amgiapp
+  bundleIdPrefix: com.skylerluk.amgi
   deploymentTarget:
     iOS: "18.0"
     watchOS: "11.0"
@@ -12,9 +12,11 @@ options:
   createIntermediateGroups: true
 settings:
   base:
+    DEVELOPMENT_TEAM: DRP7FWTPFN
+    CODE_SIGN_STYLE: Automatic
     SWIFT_VERSION: "6.0"
     MARKETING_VERSION: "0.2.0"
-    CURRENT_PROJECT_VERSION: 7
+    CURRENT_PROJECT_VERSION: 8
     SWIFT_STRICT_CONCURRENCY: complete
     # Must match the SPM packages: NonisolatedNonsendingByDefault changes the
     # mangling of `nonisolated async` function types, so the app target has to
@@ -166,6 +168,11 @@ targets:
         type: folder
       - path: Resources/EPUBReader
         type: folder
+      # Gitignored. Personal builds can ship default AI keys from here;
+      # absent in a clean checkout, which is fine.
+      - path: Resources/AIKeys.local.plist
+        optional: true
+        buildPhase: resources
     dependencies:
       - package: AmgiFeatures
         product: RootFeature
@@ -177,7 +184,7 @@ targets:
     settings:
       base:
         INFOPLIST_FILE: Info.plist
-        PRODUCT_BUNDLE_IDENTIFIER: com.amgiapp.AmgiApp
+        PRODUCT_BUNDLE_IDENTIFIER: com.skylerluk.amgiapp
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: AmgiApp.entitlements
         # Cxx interop chain. Xcode + SPM under Swift 6 needs an explicit
@@ -231,7 +238,7 @@ targets:
       - sdk: SwiftUI.framework
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.amgiapp.AmgiApp.widget
+        PRODUCT_BUNDLE_IDENTIFIER: com.skylerluk.amgiapp.widget
         INFOPLIST_FILE: Sources/Widgets/Info.plist
         CODE_SIGN_ENTITLEMENTS: AmgiWidget.entitlements
 
@@ -278,10 +285,10 @@ targets:
         product: Sharing
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.amgiapp.AmgiApp.watch
+        PRODUCT_BUNDLE_IDENTIFIER: com.skylerluk.amgiapp.watch
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_WKCompanionAppBundleIdentifier: com.amgiapp.AmgiApp
+        INFOPLIST_KEY_WKCompanionAppBundleIdentifier: com.skylerluk.amgiapp
 
   AmgiAppTests:
     type: bundle.unit-test
@@ -294,7 +301,7 @@ targets:
       base:
         BUNDLE_LOADER: $(TEST_HOST)
         TEST_HOST: $(BUILT_PRODUCTS_DIR)/AmgiApp.app/AmgiApp
-        PRODUCT_BUNDLE_IDENTIFIER: com.amgiapp.AmgiAppTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.skylerluk.amgi.AmgiAppTests
         GENERATE_INFOPLIST_FILE: YES
         # Tests inherit @testable AmgiApp's transitive Cxx-mode import
         # of ReaderDictionary, so they need the same Clang+Swift

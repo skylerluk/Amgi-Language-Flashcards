@@ -17,7 +17,7 @@ public import OSLog
 /// content (it is the user's private study material), and never
 /// interpolate credentials or absolute paths.
 public enum Log {
-    public static let subsystem = "com.amgiapp"
+    public static let subsystem = "com.skylerluk.amgi"
 
     public static let review = Logger(subsystem: subsystem, category: "review")
     public static let browse = Logger(subsystem: subsystem, category: "browse")

@@ -17,7 +17,7 @@ public import Foundation
 /// files. A mismatch silently splits the container in two, and the symptom —
 /// the widget reading an empty store — looks nothing like a typo.
 public enum AppGroup: Sendable {
-    public static let identifier = "group.com.amgiapp"
+    public static let identifier = "group.com.skylerluk.amgi"
 
     /// Shared defaults, falling back to `.standard` when the entitlement is
     /// missing, which is the case in previews and unit tests.

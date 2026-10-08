@@ -13,7 +13,7 @@ import DependenciesMacros
 import Foundation
 import Logging
 
-private let logger = Logger(label: "com.amgiapp.reader.cardcount")
+private let logger = Logger(label: "com.skylerluk.amgi.reader.cardcount")
 
 @DependencyClient
 public struct ReaderCardCountClient: Sendable {

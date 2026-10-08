@@ -12,7 +12,7 @@ public import Dependencies
 import Foundation
 import Logging
 
-private let logger = Logger(label: "com.amgiapp.media.client")
+private let logger = Logger(label: "com.skylerluk.amgi.media.client")
 
 extension MediaClient: DependencyKey {
     public static let liveValue: Self = {

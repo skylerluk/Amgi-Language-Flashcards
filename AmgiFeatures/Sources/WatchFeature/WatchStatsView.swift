@@ -12,7 +12,7 @@ import Dependencies
 import os
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.amgiapp.AmgiApp", category: "WatchStats")
+private let logger = Logger(subsystem: "com.skylerluk.amgi.AmgiApp", category: "WatchStats")
 
 struct WatchStatsView: View {
     @Dependency(\.statsClient) var statsClient

@@ -20,7 +20,7 @@ public extension UserDefaults {
         // Must match AppCore.AppGroup.identifier and both .entitlements
         // files. Theme is dependency-free on purpose, so it cannot
         // import the canonical constant.
-        let groupId = "group.com.amgiapp"
+        let groupId = "group.com.skylerluk.amgi"
         return UserDefaults(suiteName: groupId) ?? .standard
     }()
 }

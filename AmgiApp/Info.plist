@@ -20,7 +20,7 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>com.amgiapp.AmgiApp</string>
+			<string>com.skylerluk.amgi.AmgiApp</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>amgi</string>
@@ -29,6 +29,10 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Amgi uses the microphone to record voice clips onto your flashcards.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>Fonts/SarasaMonoK-Regular.ttf</string>
