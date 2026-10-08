@@ -56,7 +56,7 @@ struct MainTabView: View {
             if showReaderTab {
                 Tab("Read", systemImage: "book", value: MainTab.read) {
                     NavigationStack {
-                        ReaderLibraryView(refreshID: refreshID)
+                        ReadTabView(refreshID: refreshID)
                     }
                 }
             }

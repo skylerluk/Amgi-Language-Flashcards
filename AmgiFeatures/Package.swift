@@ -61,6 +61,7 @@ let package = Package(
         .package(url: "https://github.com/pointfreeco/swift-sharing", from: "2.0.0"),
         .package(url: "https://github.com/pointfreeco/swift-navigation", from: "2.0.0"),
         .package(url: "https://github.com/pointfreeco/swift-case-paths", from: "1.0.0"),
+        .package(url: "https://github.com/weichsel/ZIPFoundation", from: "0.9.19"),
     ],
     targets: [
         .target(
@@ -294,6 +295,7 @@ let package = Package(
                 .product(name: "UI", package: "AmgiUI"),
                 .product(name: "Dependencies", package: "swift-dependencies"),
                 .product(name: "Sharing", package: "swift-sharing"),
+                .product(name: "ZIPFoundation", package: "ZIPFoundation"),
             ],
             swiftSettings: sharedSwiftSettings + [.interoperabilityMode(.Cxx)]
         ),
