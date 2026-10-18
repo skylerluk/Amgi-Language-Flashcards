@@ -19,6 +19,20 @@
     {
       "target" : {
         "containerPath" : "container:AmgiApp.xcodeproj",
+        "identifier" : "AFE5E26D0540ED2998AA49EB",
+        "name" : "AmgiAppUITests"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:../AmgiFeatures",
+        "identifier" : "ReaderFeatureTests",
+        "name" : "ReaderFeatureTests"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:AmgiApp.xcodeproj",
         "identifier" : "EE6CF1FAA191BC2F0404B752",
         "name" : "AmgiAppTests"
       }

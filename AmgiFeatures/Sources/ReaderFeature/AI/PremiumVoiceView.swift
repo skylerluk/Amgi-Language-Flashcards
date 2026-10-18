@@ -18,8 +18,8 @@ struct PremiumVoiceView: View {
     @State private var voices: [ElevenLabs.Voice] = []
     @State private var usage: ElevenLabs.Usage?
     @State private var quality = ElevenLabs.quality
-    @State private var femaleVoice = ElevenLabs.voiceID(for: .female) ?? ""
-    @State private var maleVoice = ElevenLabs.voiceID(for: .male) ?? ""
+    @State private var femaleVoice = ""
+    @State private var maleVoice = ""
     @State private var isLoading = true
     @State private var progress: (done: Int, total: Int)?
     @State private var errorMessage: String?
@@ -44,10 +44,8 @@ struct PremiumVoiceView: View {
                     }
                 } else {
                     statusSection
-                    if !isComplete {
-                        qualitySection
-                        voicesSection
-                    }
+                    qualitySection.disabled(progress != nil || isLoading)
+                    voicesSection.disabled(progress != nil || isLoading)
                     actionsSection
                 }
                 if let errorMessage {
@@ -68,7 +66,15 @@ struct PremiumVoiceView: View {
             }
             .interactiveDismissDisabled(progress != nil)
             .sheet(isPresented: $showKeys, onDismiss: { Task { await load() } }) { AIKeysView() }
-            .task { await load() }
+            .task {
+                quality = ElevenLabs.quality(for: conversation.language)
+                femaleVoice = ElevenLabs.voiceID(for: .female, language: conversation.language) ?? ""
+                maleVoice = ElevenLabs.voiceID(for: .male, language: conversation.language) ?? ""
+                await load()
+            }
+            .onChange(of: femaleVoice) { rememberVoices() }
+            .onChange(of: maleVoice) { rememberVoices() }
+            .onChange(of: quality) { rememberVoices() }
         }
     }
 
@@ -126,9 +132,9 @@ struct PremiumVoiceView: View {
             Text("Voices")
         } footer: {
             if usage?.isFree == true {
-                Text("The free ElevenLabs plan can only use its built-in voices through the API. They are multilingual and speak Spanish; Voice Library voices (like native Mexican ones) need a paid plan.")
+                Text("Your current plan uses built-in multilingual voices. Native Voice Library voices may require a paid plan.")
             } else {
-                Text("For a native Mexican accent, add Spanish voices from the ElevenLabs Voice Library to \"My Voices\" — they'll show up here.")
+                Text("Add voices matching this conversation’s language and region to My Voices in ElevenLabs, then reopen this screen.")
             }
         }
     }
@@ -175,7 +181,7 @@ struct PremiumVoiceView: View {
     }
 
     private var canGenerate: Bool {
-        guard progress == nil else { return false }
+        guard progress == nil, !isLoading else { return false }
         if neededGenders.contains(.female), femaleVoice.isEmpty { return false }
         if neededGenders.contains(.male), maleVoice.isEmpty { return false }
         if let usage, usage.remaining < credits(quality) { return false }
@@ -185,6 +191,7 @@ struct PremiumVoiceView: View {
     // MARK: - Actions
 
     private func load() async {
+        errorMessage = nil
         refreshCount()
         guard ElevenLabs.apiKey != nil else {
             isLoading = false
@@ -210,10 +217,19 @@ struct PremiumVoiceView: View {
         }
     }
 
+    private func rememberVoices() {
+        guard !isLoading, progress == nil else { return }
+        ElevenLabs.setQuality(quality, language: conversation.language)
+        if !femaleVoice.isEmpty { ElevenLabs.setVoiceID(femaleVoice, for: .female, language: conversation.language) }
+        if !maleVoice.isEmpty { ElevenLabs.setVoiceID(maleVoice, for: .male, language: conversation.language) }
+        refreshCount()
+        onChange()
+    }
+
     private func generate() async {
-        ElevenLabs.quality = quality
-        if !femaleVoice.isEmpty { ElevenLabs.setVoiceID(femaleVoice, for: .female) }
-        if !maleVoice.isEmpty { ElevenLabs.setVoiceID(maleVoice, for: .male) }
+        ElevenLabs.setQuality(quality, language: conversation.language)
+        if !femaleVoice.isEmpty { ElevenLabs.setVoiceID(femaleVoice, for: .female, language: conversation.language) }
+        if !maleVoice.isEmpty { ElevenLabs.setVoiceID(maleVoice, for: .male, language: conversation.language) }
         errorMessage = nil
 
         let pending = conversation.lines.filter { ConversationAudioCache.cachedURL(for: $0, in: conversation) == nil }
@@ -227,7 +243,7 @@ struct PremiumVoiceView: View {
             let gender = conversation.speaker(for: line)?.gender ?? .female
             let voice = gender == .female ? femaleVoice : maleVoice
             do {
-                let audio = try await ElevenLabs.synthesize(line.text, voiceID: voice, quality: quality)
+                let audio = try await ElevenLabs.synthesize(line.text, voiceID: voice, quality: quality, language: conversation.language)
                 try ConversationAudioCache.save(audio, for: line, in: conversation)
                 progress = (index + 1, pending.count)
             } catch {
@@ -250,8 +266,15 @@ struct PremiumVoiceView: View {
             var score = 0
             if voice.gender?.lowercased() == gender { score += 4 }
             let tags = "\(voice.accent ?? "") \(voice.language ?? "") \(voice.name)".lowercased()
-            if tags.contains("mex") { score += 3 }
-            if tags.contains("spanish") || tags.contains("latin") || tags.contains(" es") || voice.language == "es" { score += 2 }
+            if conversation.language.hasPrefix("zh") {
+                if tags.contains("mandarin") || tags.contains("chinese") || voice.language == "zh" { score += 10 }
+                if tags.contains("mainland") || tags.contains("standard") || tags.contains("beijing") { score += 5 }
+            } else if conversation.language.hasPrefix("es") {
+                if tags.contains("mex") { score += 5 }
+                if tags.contains("spanish") || tags.contains("latin") || voice.language == "es" { score += 10 }
+            } else if voice.language == String(conversation.language.prefix(2)) {
+                score += 10
+            }
             return score
         }
         return voices.sorted { score($0) > score($1) }

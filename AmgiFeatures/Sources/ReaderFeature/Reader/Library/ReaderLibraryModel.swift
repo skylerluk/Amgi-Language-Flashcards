@@ -18,6 +18,7 @@ import Foundation
 @Observable
 @MainActor
 final class ReaderLibraryModel {
+    var languageFilter: LearningLanguage? = .mandarin
     var state: ReaderLibraryContent.State = .loading
     var importError: String?
 
@@ -58,6 +59,18 @@ final class ReaderLibraryModel {
         // backgrounding or force-quit after a chapter closed.
         await progress.flushPendingPushes()
 
+        if !UserDefaults.standard.bool(forKey: "reader.bundledMandarin.v1") {
+            do {
+                for name in BundledReadingSupport.bookNames {
+                    if !UserDefaults.standard.bool(forKey: "reader.installedBook." + name),
+                       let url = Bundle.module.url(forResource: name, withExtension: "epub") {
+                        _ = try await epubLibraryClient.importEPUB(url)
+                        UserDefaults.standard.set(true, forKey: "reader.installedBook." + name)
+                    }
+                }
+                UserDefaults.standard.set(true, forKey: "reader.bundledMandarin.v1")
+            } catch { importError = "Couldn't install the Mandarin readers: \(error.localizedDescription)" }
+        }
         async let epubBooks: [ReaderBook] = epubLibraryClient.listBooks()
 
         var ankiBooks: [ReaderBook] = []
@@ -72,7 +85,13 @@ final class ReaderLibraryModel {
 
         let resolvedEPUBs = await epubBooks
         if Task.isCancelled { return }
-        let merged = ankiBooks + resolvedEPUBs
+        let choicesData = Data((UserDefaults.standard.string(forKey: "reader.bookLanguages") ?? "{}").utf8)
+        let choices = (try? JSONDecoder().decode([String: String].self, from: choicesData)) ?? [:]
+        let merged = (ankiBooks + resolvedEPUBs).map { book in
+            var result = book
+            if let language = choices[book.id] { result.language = language }
+            return result
+        }
         books = merged
         bookIndex = Dictionary(merged.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
 
@@ -123,7 +142,7 @@ final class ReaderLibraryModel {
         guard !books.isEmpty else { return }
         let coverURLs = epubCoverURLs
         let data = ReaderLibraryViewDataBuilder.build(
-            books: books,
+            books: books.filter { languageFilter == nil || languageFilter!.matches($0.language) || $0.language == nil || $0.language == "" },
             progressFor: { [progressByBook] in progressByBook[$0] },
             epubCoverURLFor: { coverURLs[$0] },
             searchText: searchText,

@@ -31,8 +31,10 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Amgi transcribes your spoken replies in the selected learning language. Recognition may use Apple servers when on-device recognition is unavailable.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Amgi uses the microphone to record voice clips onto your flashcards.</string>
+	<string>Amgi uses the microphone to dictate tutor replies and record voice clips onto your flashcards.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>Fonts/SarasaMonoK-Regular.ttf</string>

@@ -91,9 +91,14 @@ enum ConversationMarkdown {
 
         guard !lines.isEmpty else { throw ParseError.noLines }
 
-        let level = Conversation.Level.allCases.first {
+        var level = Conversation.Level.allCases.first {
             $0.rawValue.lowercased() == meta["level"]?.lowercased()
         } ?? .beginner
+        if meta["language"]?.hasPrefix("zh") == true {
+            let label = meta["level"]?.lowercased().replacingOccurrences(of: " ", with: "") ?? ""
+            if label == "hsk5" { level = .intermediate }
+            if label == "hsk6" || label == "hsk6+" { level = .advanced }
+        }
 
         return Conversation(
             id: id,

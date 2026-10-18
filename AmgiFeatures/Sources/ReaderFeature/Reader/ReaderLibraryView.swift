@@ -48,6 +48,9 @@ package struct ReaderLibraryView: View {
     @Shared(.appStorage(ReaderPreferences.Keys.bookshelfSortMode))
     private var sortModeRaw: String = BookshelfSortMode.recent.rawValue
 
+    @AppStorage(LearningLanguage.preferenceKey) private var languageTag = LearningLanguage.mandarin.rawValue
+    @AppStorage("reader.bookLanguages") private var bookLanguages = "{}"
+    @State private var allLanguages = false
     @State private var searchText: String = ""
     @State private var isImporting: Bool = false
     @State private var showConfiguration: Bool = false
@@ -98,7 +101,13 @@ package struct ReaderLibraryView: View {
         .onChange(of: sortModeRaw) { _, _ in model.rebuildViewData(searchText: searchText, sortMode: sortMode) }
         .onChange(of: deckName) { _, _ in model.startReload(searchText: searchText, sortMode: sortMode) }
         .refreshable { await model.reload(searchText: searchText, sortMode: sortMode) }
-        .task(id: refreshID) { model.startReload(searchText: searchText, sortMode: sortMode) }
+        .task(id: refreshID) {
+            model.languageFilter = allLanguages ? nil : .resolve(languageTag)
+            model.startReload(searchText: searchText, sortMode: sortMode)
+        }
+        .onChange(of: languageTag) { updateLanguageFilter() }
+        .onChange(of: allLanguages) { updateLanguageFilter() }
+        .onChange(of: bookLanguages) { model.startReload(searchText: searchText, sortMode: sortMode) }
         .sheet(isPresented: $showConfiguration) {
             NavigationStack {
                 ReaderConfigurationView {
@@ -124,8 +133,14 @@ package struct ReaderLibraryView: View {
         }
     }
 
+    private func updateLanguageFilter() {
+        model.languageFilter = allLanguages ? nil : .resolve(languageTag)
+        model.rebuildViewData(searchText: searchText, sortMode: sortMode)
+    }
+
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) { Toggle("All languages", isOn: $allLanguages) }
         ToolbarItem(placement: .topBarTrailing) {
             Button("Import EPUB…", systemImage: "square.and.arrow.down") {
                 isImporting = true

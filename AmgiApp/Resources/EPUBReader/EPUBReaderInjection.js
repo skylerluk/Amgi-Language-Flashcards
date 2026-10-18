@@ -198,7 +198,10 @@
     document.addEventListener('click', function (e) {
       const lookup = window.amgiLookup;
       if (!lookup) return;
-      const payload = lookup.payloadAt(e.clientX, e.clientY, window.__amgiLookupScanLength || 16);
+      const selected = window.getSelection()?.toString().trim();
+      const payload = selected
+        ? { text: selected, sentence: selected }
+        : lookup.payloadAt(e.clientX, e.clientY, window.__amgiLookupScanLength || 16);
       if (!payload) return;
       try {
         window.webkit.messageHandlers.wordTap.postMessage({

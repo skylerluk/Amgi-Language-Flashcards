@@ -16,7 +16,7 @@ settings:
     CODE_SIGN_STYLE: Automatic
     SWIFT_VERSION: "6.0"
     MARKETING_VERSION: "0.2.0"
-    CURRENT_PROJECT_VERSION: 8
+    CURRENT_PROJECT_VERSION: 9
     SWIFT_STRICT_CONCURRENCY: complete
     # Must match the SPM packages: NonisolatedNonsendingByDefault changes the
     # mangling of `nonisolated async` function types, so the app target has to
@@ -289,6 +289,19 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_WKCompanionAppBundleIdentifier: com.skylerluk.amgiapp
+
+  AmgiAppUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: Tests/AmgiAppUITests
+    dependencies:
+      - target: AmgiApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.skylerluk.amgiapp.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: AmgiApp
 
   AmgiAppTests:
     type: bundle.unit-test

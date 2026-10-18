@@ -18,6 +18,9 @@ import UniformTypeIdentifiers
 struct ConversationListView: View {
     @Environment(\.palette) private var palette
     let conversations: [Conversation]
+    @AppStorage(LearningLanguage.preferenceKey) private var languageTag = LearningLanguage.mandarin.rawValue
+    private var language: LearningLanguage { LearningLanguage.resolve(languageTag) }
+    private var imported: [Conversation] { store.imported.filter { language.matches($0.language) } }
 
     @State private var store = ConversationStore.shared
     @State private var isImporting = false
@@ -34,7 +37,7 @@ struct ConversationListView: View {
     var body: some View {
         List {
             Section {
-                if store.imported.isEmpty {
+                if imported.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Add your own conversations")
                             .amgiFont(.bodyEmphasis)
@@ -45,7 +48,7 @@ struct ConversationListView: View {
                     }
                     .padding(.vertical, 4)
                 } else {
-                    ForEach(store.imported) { conversation in
+                    ForEach(imported) { conversation in
                         NavigationLink(value: conversation) {
                             row(conversation)
                         }
@@ -60,7 +63,7 @@ struct ConversationListView: View {
                 Text("Your conversations")
             }
 
-            ForEach(Conversation.spanishSections, id: \.title) { section in
+            ForEach(language == .spanish ? Conversation.spanishSections : [], id: \.title) { section in
                 Section(section.title) {
                     ForEach(section.conversations) { conversation in
                         NavigationLink(value: conversation) {
@@ -71,9 +74,9 @@ struct ConversationListView: View {
             }
 
             ForEach(Conversation.Level.allCases, id: \.self) { level in
-                let items = conversations.filter { $0.level == level }
+                let items = (language.isChinese ? Conversation.mandarin : language == .spanish ? conversations : []).filter { $0.level == level }
                 if !items.isEmpty {
-                    Section(level.rawValue) {
+                    Section(language.levelName(level)) {
                         ForEach(items) { conversation in
                             NavigationLink(value: conversation) {
                                 row(conversation)
@@ -160,6 +163,7 @@ struct ConversationDetailView: View {
     @State private var speaker = ConversationSpeaker()
     @State private var revealed: Set<Int> = []
     @State private var showAllTranslations = false
+    @AppStorage("reader.showPinyin") private var showPinyin = true
     @State private var cardDraft: DraftItem?
     @State private var preparingCardLine: Int?
     @State private var translationText = ""
@@ -200,6 +204,12 @@ struct ConversationDetailView: View {
                             .amgiFont(.micro)
                             .foregroundStyle(palette.textTertiary)
                             .padding(.top, 4)
+                        if let focus = conversation.mandarinLearningFocus {
+                            DisclosureGroup("Useful phrases & grammar") {
+                                Text(focus).font(.subheadline).multilineTextAlignment(.leading)
+                                    .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
+                            }.font(.subheadline).padding(.top, 8)
+                        }
                     }
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
@@ -264,6 +274,9 @@ struct ConversationDetailView: View {
                 )
             }
             Menu {
+                if conversation.language.hasPrefix("zh") {
+                    Toggle("Show pinyin", isOn: $showPinyin)
+                }
                 Toggle(isOn: $speaker.isSlow) {
                     Label("Slow speed", systemImage: "tortoise")
                 }
@@ -312,6 +325,9 @@ struct ConversationDetailView: View {
                             askAI = AskItem(question: AIPrompts.askAboutSelection(selection, line: line.text))
                         }
                     )
+                    if showPinyin && conversation.language.hasPrefix("zh") {
+                        Text(LearningLanguage.pinyin(line.text)).font(.subheadline).foregroundStyle(.secondary)
+                    }
                     if isShowingTranslation(line) {
                         Text(line.translation)
                             .amgiFont(.caption)
@@ -388,8 +404,8 @@ struct ConversationDetailView: View {
             audio = try? await SpeechFileRenderer.render(speaker.utterance(for: line, in: conversation))
         }
         cardDraft = DraftItem(draft: AddNoteDraft(
-            fieldValues: ["Front": line.text, "Back": line.translation],
-            tags: ["conversation", "spanish"],
+            fieldValues: ["Front": line.text, "Back": conversation.language.hasPrefix("zh") ? LearningLanguage.pinyin(line.text) + "<br>" + line.translation : line.translation],
+            tags: ["conversation", conversation.language],
             audioFiles: audio.map { ["Front": [$0]] } ?? [:]
         ))
     }
@@ -428,6 +444,8 @@ package struct ReadTabView: View {
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
+            VStack(spacing: 0) {
+            LearningLanguagePicker().pickerStyle(.menu).padding(.horizontal, 16)
             Picker("Read", selection: $mode) {
                 ForEach(Mode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
             }
@@ -435,6 +453,7 @@ package struct ReadTabView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
             .background(.bar)
+            }
         }
     }
 }

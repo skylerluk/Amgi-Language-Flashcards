@@ -20,10 +20,12 @@ final class AskAIModel {
     var errorMessage: String?
 
     private let context: String
+    private let language: LearningLanguage
     @ObservationIgnored private var task: Task<Void, Never>?
 
     init(conversation: Conversation) {
         context = AIPrompts.explainerContext(conversation)
+        language = .resolve(conversation.language)
     }
 
     var hasKey: Bool { AIProvider.openRouter.endpoint != nil }
@@ -41,7 +43,7 @@ final class AskAIModel {
         let answerIndex = turns.count - 1
 
         var messages = [
-            ChatMessage(role: .system, content: AIPrompts.explainerSystem),
+            ChatMessage(role: .system, content: AIPrompts.explainerSystem(language: language)),
             ChatMessage(role: .user, content: context),
             ChatMessage(role: .assistant, content: "Got it — I have the dialogue. What would you like to know?"),
         ]

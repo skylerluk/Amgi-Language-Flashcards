@@ -131,7 +131,17 @@ package struct LookupPopupView: View {
 
     package var body: some View {
         NavigationStack(path: $lookupPath) {
-            content
+            VStack(spacing: 0) {
+                if let sentence, !sentence.isEmpty {
+                    ScrollView {
+                        ReadingSentenceView(text: sentence, language: languageHint ?? LearningLanguage.spanish.rawValue,
+                                            tags: extraTags, source: extraTags.joined(separator: " · "),
+                                            onAdded: { onAddedNote?() })
+                    }.frame(maxHeight: 330)
+                    Divider()
+                }
+                content
+            }
                 .navigationTitle("Lookup")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

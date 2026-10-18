@@ -9,6 +9,7 @@
 
 import SwiftUI
 import Theme
+import AVFoundation
 
 @Observable
 @MainActor
@@ -17,6 +18,7 @@ final class TutorModel {
         let id: Int
         let isUser: Bool
         let text: String
+        var pinyin = ""
         var english = ""
         var correction = ""
         var hint = ""
@@ -24,6 +26,7 @@ final class TutorModel {
         var raw = ""
     }
 
+    var language: LearningLanguage = .mandarin
     var topic = ""
     var level: Conversation.Level = .beginner
     private(set) var isStarted = false
@@ -32,6 +35,7 @@ final class TutorModel {
     var errorMessage: String?
 
     @ObservationIgnored private var nextID = 0
+    @ObservationIgnored private var requestID = UUID()
 
     var hasKey: Bool { AIProvider.groq.endpoint != nil }
 
@@ -60,6 +64,8 @@ final class TutorModel {
     }
 
     func reset() {
+        requestID = UUID()
+        isThinking = false
         isStarted = false
         messages = []
         errorMessage = nil
@@ -71,12 +77,14 @@ final class TutorModel {
             return
         }
         errorMessage = nil
+        requestID = UUID()
+        let currentRequest = requestID
         isThinking = true
-        defer { isThinking = false }
+        defer { if requestID == currentRequest { isThinking = false } }
 
         var history = [
-            ChatMessage(role: .system, content: AIPrompts.tutorSystem(topic: topic, level: level)),
-            ChatMessage(role: .user, content: AIPrompts.tutorOpening),
+            ChatMessage(role: .system, content: AIPrompts.tutorSystem(topic: topic, level: level, language: language)),
+            ChatMessage(role: .user, content: AIPrompts.opening(language: language)),
         ]
         for message in messages {
             history.append(message.isUser
@@ -86,8 +94,10 @@ final class TutorModel {
 
         do {
             let raw = try await ChatClient.complete(endpoint, messages: history, json: true, temperature: 0.7)
+            guard requestID == currentRequest else { return }
             messages.append(Self.parse(raw, id: makeID()))
         } catch {
+            guard requestID == currentRequest else { return }
             errorMessage = error.localizedDescription
         }
     }
@@ -99,6 +109,7 @@ final class TutorModel {
 
     private struct Turn: Decodable {
         let reply: String
+        let pinyin: String?
         let english: String?
         let correction: String?
         let hint: String?
@@ -119,6 +130,7 @@ final class TutorModel {
             id: id,
             isUser: false,
             text: turn.reply,
+            pinyin: turn.pinyin ?? "",
             english: turn.english ?? "",
             correction: turn.correction ?? "",
             hint: turn.hint ?? "",
@@ -133,9 +145,15 @@ private extension String {
 
 /// The Tutor half of the Read tab: pick a topic and level, then chat.
 struct TutorView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.palette) private var palette
     @State private var model = TutorModel()
     @State private var speaker = ConversationSpeaker()
+    @State private var dictation = TutorDictation()
+    @State private var dictatedPrefix = ""
+    @State private var didConfigureLanguage = false
+    @AppStorage(LearningLanguage.preferenceKey) private var languageTag = LearningLanguage.mandarin.rawValue
+    @AppStorage("reader.showPinyin") private var showPinyin = true
     @State private var draft = ""
     @State private var revealed: Set<Int> = []
     @State private var showHint = false
@@ -154,6 +172,7 @@ struct TutorView: View {
         .navigationBarTitleDisplayMode(model.isStarted ? .inline : .large)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
+                if model.language.isChinese { Toggle("Pinyin", isOn: $showPinyin) }
                 if model.isStarted {
                     Button {
                         autoSpeak.toggle()
@@ -166,6 +185,8 @@ struct TutorView: View {
                     }
                     Button("New Topic", systemImage: "arrow.counterclockwise") {
                         speaker.stop()
+                        dictation.stop()
+                        draft = ""
                         model.reset()
                         revealed = []
                     }
@@ -177,9 +198,22 @@ struct TutorView: View {
         .onChange(of: model.messages.count) {
             showHint = false
             guard autoSpeak, let last = model.messages.last, !last.isUser else { return }
-            speaker.speak(text: last.text, id: last.id)
+            speaker.speak(text: last.text, id: last.id, language: model.language.rawValue)
         }
-        .onDisappear { speaker.stop() }
+        .onAppear { if !didConfigureLanguage { configureLanguage() } }
+        .onChange(of: model.level) { UserDefaults.standard.set(model.level.rawValue, forKey: "tutor.level." + languageTag) }
+        .onChange(of: languageTag) { configureLanguage() }
+        .onChange(of: dictation.transcript) {
+            draft = dictatedPrefix + dictation.transcript
+        }
+        .onChange(of: scenePhase) {
+            if scenePhase == .background || (scenePhase == .inactive && !dictation.isStarting) {
+                dictation.stop()
+                speaker.stop()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)) { _ in dictation.stop() }
+        .onDisappear { speaker.stop(); dictation.stop() }
     }
 
     // MARK: - Setup
@@ -187,7 +221,7 @@ struct TutorView: View {
     private var setup: some View {
         Form {
             Section {
-                Text("Practice speaking with Profe, an AI tutor. Pick a topic — Profe keeps the conversation going, corrects your Spanish and gives hints when you're stuck.")
+                Text("Practice in \(model.language.name). Pick a topic, speak or type, and get helpful corrections and hints.")
                     .amgiFont(.caption)
                     .foregroundStyle(palette.textSecondary)
             }
@@ -195,7 +229,7 @@ struct TutorView: View {
                 TextField("What do you want to talk about?", text: $model.topic, axis: .vertical)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack {
-                        ForEach(AIPrompts.tutorTopicSuggestions, id: \.self) { idea in
+                        ForEach(AIPrompts.topics(language: model.language), id: \.self) { idea in
                             Button(idea) { model.topic = idea }
                                 .buttonStyle(.bordered)
                                 .amgiFont(.caption)
@@ -205,7 +239,7 @@ struct TutorView: View {
             }
             Section("Level") {
                 Picker("Level", selection: $model.level) {
-                    ForEach(Conversation.Level.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    ForEach(Conversation.Level.allCases, id: \.self) { Text(model.language.levelName($0)).tag($0) }
                 }
                 .pickerStyle(.segmented)
             }
@@ -232,7 +266,7 @@ struct TutorView: View {
                     if model.isThinking {
                         HStack {
                             ProgressView()
-                            Text("Profe is typing…")
+                            Text("Your tutor is typing…")
                                 .amgiFont(.caption)
                                 .foregroundStyle(palette.textSecondary)
                         }
@@ -293,6 +327,10 @@ struct TutorView: View {
                             .amgiFont(.body)
                             .foregroundStyle(palette.textPrimary)
                             .textSelection(.enabled)
+                        if showPinyin && model.language.isChinese {
+                            Text(message.pinyin.isEmpty ? LearningLanguage.pinyin(message.text) : message.pinyin)
+                                .font(.subheadline).foregroundStyle(.secondary)
+                        }
                         if revealed.contains(message.id), !message.english.isEmpty {
                             Text(message.english)
                                 .amgiFont(.caption)
@@ -304,7 +342,8 @@ struct TutorView: View {
                         if speaker.speakingLineID == message.id {
                             speaker.stop()
                         } else {
-                            speaker.speak(text: message.text, id: message.id)
+                            dictation.stop()
+                            speaker.speak(text: message.text, id: message.id, language: model.language.rawValue)
                         }
                     } label: {
                         Image(systemName: speaker.speakingLineID == message.id ? "speaker.wave.3.fill" : "speaker.wave.2.fill")
@@ -330,6 +369,8 @@ struct TutorView: View {
 
     private var inputBar: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if let error = dictation.errorMessage { Text(error).font(.caption).foregroundStyle(.red) }
+            if dictation.isRecording { Text("Listening… Tap stop, then edit or send.").font(.caption) }
             if showHint, let hint = model.latestHint {
                 Label(hint, systemImage: "lightbulb")
                     .amgiFont(.caption)
@@ -349,12 +390,24 @@ struct TutorView: View {
                 .disabled(model.latestHint == nil)
                 .accessibilityLabel("Hint")
 
-                TextField("Responde en español…", text: $draft, axis: .vertical)
+                TextField(model.language.isChinese ? "用中文回答…" : "Reply in \(model.language.name)…", text: $draft, axis: .vertical)
                     .lineLimit(1...4)
                     .textFieldStyle(.roundedBorder)
                     .submitLabel(.send)
                     .onSubmit(send)
 
+                Button {
+                    if dictation.isRecording { dictation.stop() }
+                    else {
+                        speaker.stop()
+                        dictatedPrefix = draft.isEmpty ? "" : draft + " "
+                        Task { await dictation.start(language: model.language.rawValue) }
+                    }
+                } label: {
+                    Image(systemName: dictation.isRecording ? "stop.circle.fill" : "mic.fill")
+                }
+                .disabled(model.isThinking || dictation.isStarting)
+                .accessibilityLabel(dictation.isRecording ? "Stop dictation" : "Dictate reply")
                 Button("Send", systemImage: "arrow.up.circle.fill", action: send)
                     .labelStyle(.iconOnly)
                     .font(.title2)
@@ -366,7 +419,19 @@ struct TutorView: View {
         .background(.bar)
     }
 
+    private func configureLanguage() {
+        didConfigureLanguage = true
+        speaker.stop()
+        dictation.stop()
+        model.reset()
+        model.language = .resolve(languageTag)
+        model.level = Conversation.Level(rawValue: UserDefaults.standard.string(forKey: "tutor.level." + languageTag) ?? "") ?? .beginner
+        draft = ""
+        revealed = []
+    }
+
     private func send() {
+        dictation.stop()
         let text = draft
         draft = ""
         speaker.stop()

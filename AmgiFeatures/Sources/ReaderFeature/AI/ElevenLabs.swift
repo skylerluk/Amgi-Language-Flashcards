@@ -9,6 +9,7 @@
 
 import Foundation
 import Security
+import CryptoKit
 
 enum ElevenLabs {
     enum Quality: String, CaseIterable, Identifiable, Sendable {
@@ -96,17 +97,28 @@ enum ElevenLabs {
 
     /// The voice used for female / male speakers, chosen once in the
     /// premium-voice sheet and reused for every conversation.
-    static func voiceID(for gender: Conversation.Speaker.Gender) -> String? {
-        UserDefaults.standard.string(forKey: "elevenlabs.voice.\(gender == .female ? "f" : "m")")
+    static func voiceID(for gender: Conversation.Speaker.Gender, language: String = "es-MX") -> String? {
+        let suffix = gender == .female ? "f" : "m"
+        return UserDefaults.standard.string(forKey: "elevenlabs.voice.\(language).\(suffix)")
+            ?? (language == "es-MX" ? UserDefaults.standard.string(forKey: "elevenlabs.voice.\(suffix)") : nil)
     }
 
-    static func setVoiceID(_ id: String, for gender: Conversation.Speaker.Gender) {
-        UserDefaults.standard.set(id, forKey: "elevenlabs.voice.\(gender == .female ? "f" : "m")")
+    static func setVoiceID(_ id: String, for gender: Conversation.Speaker.Gender, language: String = "es-MX") {
+        UserDefaults.standard.set(id, forKey: "elevenlabs.voice.\(language).\(gender == .female ? "f" : "m")")
     }
 
     static var quality: Quality {
         get { Quality(rawValue: UserDefaults.standard.string(forKey: "elevenlabs.quality") ?? "") ?? .saver }
         set { UserDefaults.standard.set(newValue.rawValue, forKey: "elevenlabs.quality") }
+    }
+
+    static func quality(for language: String) -> Quality {
+        Quality(rawValue: UserDefaults.standard.string(forKey: "elevenlabs.quality." + language) ?? "")
+            ?? (language == "es-MX" ? quality : .saver)
+    }
+
+    static func setQuality(_ quality: Quality, language: String) {
+        UserDefaults.standard.set(quality.rawValue, forKey: "elevenlabs.quality." + language)
     }
 
     // MARK: - API
@@ -148,7 +160,7 @@ enum ElevenLabs {
     }
 
     /// Returns MP3 audio for `text`.
-    static func synthesize(_ text: String, voiceID: String, quality: Quality, slow: Bool = false) async throws -> Data {
+    static func synthesize(_ text: String, voiceID: String, quality: Quality, language: String = "es-MX", slow: Bool = false) async throws -> Data {
         guard let key = apiKey else { throw Failure.missingKey }
         var components = URLComponents(url: base.appendingPathComponent("/v1/text-to-speech/\(voiceID)"), resolvingAgainstBaseURL: false)!
         components.queryItems = [URLQueryItem(name: "output_format", value: "mp3_44100_128")]
@@ -160,6 +172,7 @@ enum ElevenLabs {
         request.setValue("audio/mpeg", forHTTPHeaderField: "Accept")
         let body: [String: Any] = [
             "text": text,
+            "language_code": String(language.prefix(2)),
             "model_id": quality.model,
             "voice_settings": [
                 "stability": 0.5,
@@ -207,11 +220,21 @@ enum ConversationAudioCache {
     }
 
     static func url(for line: Conversation.Line, in conversation: Conversation) -> URL {
-        directory(for: conversation).appendingPathComponent("\(line.id).mp3")
+        let voice = ElevenLabs.voiceID(for: conversation.speaker(for: line)?.gender ?? .female, language: conversation.language) ?? "system"
+        let identity = "\(conversation.language)|\(line.text)|\(voice)|\(ElevenLabs.quality(for: conversation.language).model)"
+        let hash = SHA256.hash(data: Data(identity.utf8)).map { String(format: "%02x", $0) }.joined()
+        return directory(for: conversation).appendingPathComponent("\(line.id)-\(hash).mp3")
     }
 
     static func cachedURL(for line: Conversation.Line, in conversation: Conversation) -> URL? {
         let url = url(for: line, in: conversation)
+        // One-time migration preserves previously generated Spanish recordings.
+        // Moving (not copying) ensures a subsequent voice change cannot revive old audio.
+        let legacy = directory(for: conversation).appendingPathComponent("\(line.id).mp3")
+        if !FileManager.default.fileExists(atPath: url.path), conversation.language == "es-MX",
+           FileManager.default.fileExists(atPath: legacy.path) {
+            try? FileManager.default.moveItem(at: legacy, to: url)
+        }
         return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
 

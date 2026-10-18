@@ -102,7 +102,8 @@ struct EPUBChapterReaderView: View {
             lineHeight: typoLineHeight,
             paddingPx: Int(horizontalPadding),
             verticalMode: verticalLayout,
-            fontFamilyCSS: typoFontFamily.cssStack,
+            fontFamilyCSS: (book.language?.hasPrefix("zh") == true
+                ? "\"PingFang SC\", \"Hiragino Sans GB\", " : "") + typoFontFamily.cssStack,
             pageMarginPx: typoPageMargin.pixels,
             textAlign: typoJustify ? "justify" : "left",
             tokenUnderlineCSS: theme.tokenUnderlineHex,
@@ -128,16 +129,11 @@ struct EPUBChapterReaderView: View {
             ReaderTypographySettingsView()
         }
         .sheet(item: $lookupRequest, onDismiss: { lookupHighlight.clear() }) { request in
-            LookupPopupView(
-                initialQuery: request.token,
-                languageHint: book.language,
-                extraTags: sourceTags(),
-                sentence: request.sentence,
-                onAddedNote: { handleCardAdded() },
-                onMatched: { lookupHighlight.show(matched: $0) },
-                onDismiss: { lookupRequest = nil }
-            )
-            .presentationDetents([.fraction(0.45), .large])
+            ReadingPassageSheet(text: request.sentence, word: request.token,
+                                language: book.language ?? UserDefaults.standard.string(forKey: LearningLanguage.preferenceKey) ?? "zh-CN",
+                                tags: sourceTags(), source: "\(book.title) · \(currentChapter?.title ?? "")",
+                                onAdded: { handleCardAdded() })
+            .presentationDetents([.fraction(0.75), .large])
         }
         .sensoryFeedback(trigger: endOfBookToastVisible) { _, visible in
             visible ? .success : nil

@@ -287,6 +287,8 @@ let package = Package(
                 "AppCore",
                 "AppShared",
                 "BrowseFeature",
+                .product(name: "AnkiServices", package: "amgi"),
+                .product(name: "AnkiBackend", package: "amgi"),
                 .product(name: "Reader", package: "AmgiReader"),
                 .product(name: "ReaderDictionary", package: "AmgiReader"),
                 .product(name: "AnkiKit", package: "amgi"),
@@ -297,6 +299,12 @@ let package = Package(
                 .product(name: "Sharing", package: "swift-sharing"),
                 .product(name: "ZIPFoundation", package: "ZIPFoundation"),
             ],
+            resources: [.process("Resources")],
+            swiftSettings: sharedSwiftSettings + [.interoperabilityMode(.Cxx)]
+        ),
+        .testTarget(
+            name: "ReaderFeatureTests",
+            dependencies: ["ReaderFeature"],
             swiftSettings: sharedSwiftSettings + [.interoperabilityMode(.Cxx)]
         ),
         .target(

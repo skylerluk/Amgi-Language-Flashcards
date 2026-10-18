@@ -17,16 +17,38 @@ struct ReaderBookDetailView: View {
 
     @State private var model = ReaderBookDetailModel()
     @State private var savedProgress: ReaderSavedProgress?
+    @AppStorage("reader.bookLanguages") private var bookLanguages = "{}"
+
+    private var resolvedBook: ReaderBook {
+        var resolved = book
+        if let data = bookLanguages.data(using: .utf8),
+           let choices = try? JSONDecoder().decode([String: String].self, from: data),
+           let language = choices[book.id] { resolved.language = language }
+        return resolved
+    }
+
+    private func setLanguage(_ language: LearningLanguage) {
+        var choices = (try? JSONDecoder().decode([String: String].self, from: Data(bookLanguages.utf8))) ?? [:]
+        choices[book.id] = language.rawValue
+        if let data = try? JSONEncoder().encode(choices), let value = String(data: data, encoding: .utf8) { bookLanguages = value }
+    }
 
     var body: some View {
         ReaderBookDetailContent(
-            book: book,
+            book: resolvedBook,
             savedProgress: savedProgress,
             state: model.state,
             progress: progress
         )
         .navigationTitle(book.title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            Menu("Book language", systemImage: "globe") {
+                ForEach(LearningLanguage.allCases) { language in
+                    Button(language.name) { setLanguage(language) }
+                }
+            }
+        }
         .task {
             savedProgress = await progress.resolved(bookID: book.id)
             await model.load(book: book)
@@ -95,6 +117,11 @@ private struct ReaderBookDetailContent: View {
                     resumeIndex: resumeChapterIndex,
                     destination: destinationForChapter(at:)
                 )
+                NavigationLink {
+                    BookSentencePracticeView(bookID: book.id, language: book.language ?? "zh-CN")
+                } label: {
+                    Label("Practice saved sentences", systemImage: "rectangle.on.rectangle")
+                }.buttonStyle(.bordered)
                 ChaptersSection(
                     book: book,
                     pageRanges: pageRanges,

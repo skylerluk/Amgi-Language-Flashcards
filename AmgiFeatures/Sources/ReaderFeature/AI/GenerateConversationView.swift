@@ -12,6 +12,8 @@ struct GenerateConversationView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.palette) private var palette
 
+    @AppStorage(LearningLanguage.preferenceKey) private var languageTag = LearningLanguage.mandarin.rawValue
+    private var language: LearningLanguage { .resolve(languageTag) }
     @State private var topic = ""
     @State private var level: Conversation.Level = .beginner
     @State private var isGenerating = false
@@ -30,7 +32,7 @@ struct GenerateConversationView: View {
                     TextField("Anything — or leave empty to be surprised", text: $topic, axis: .vertical)
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack {
-                            ForEach(ideas, id: \.self) { idea in
+                            ForEach(language.isChinese ? AIPrompts.topics(language: language) : ideas, id: \.self) { idea in
                                 Button(idea) { topic = idea }
                                     .buttonStyle(.bordered)
                                     .amgiFont(.caption)
@@ -40,7 +42,7 @@ struct GenerateConversationView: View {
                 }
                 Section("Level") {
                     Picker("Level", selection: $level) {
-                        ForEach(Conversation.Level.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        ForEach(Conversation.Level.allCases, id: \.self) { Text(language.levelName($0)).tag($0) }
                     }
                     .pickerStyle(.segmented)
                 }
@@ -86,8 +88,8 @@ struct GenerateConversationView: View {
             let raw = try await ChatClient.complete(
                 endpoint,
                 messages: [
-                    ChatMessage(role: .system, content: AIPrompts.generatorSystem(level: level)),
-                    ChatMessage(role: .user, content: AIPrompts.generatorRequest(topic: topic)),
+                    ChatMessage(role: .system, content: AIPrompts.generatorSystem(level: level, language: language)),
+                    ChatMessage(role: .user, content: AIPrompts.generatorRequest(topic: topic, language: language)),
                 ],
                 temperature: 0.9
             )
