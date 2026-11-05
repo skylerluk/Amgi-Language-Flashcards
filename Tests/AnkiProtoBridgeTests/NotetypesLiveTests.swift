@@ -12,6 +12,15 @@ import AnkiKit
 @testable import AnkiBackend
 
 @Suite struct NotetypesLiveTests {
+    @Test func addNotetype_returnsPersistedID() throws {
+        try withScratchCollection("notetype-add") { backend, _ in
+            let type = Notetype(name: "Practice", fields: [.init(name: "Front"), .init(name: "Back")],
+                templates: [.init(name: "Forward", config: .init(qFormat: "{{Front}}", aFormat: "{{Back}}"))])
+            let id = try backend.invoke(.addNotetype(type))
+            #expect(id.rawValue != 0)
+            #expect(try backend.invoke(.notetype(for: id)).name == "Practice")
+        }
+    }
     @Test func notetype_carriesFieldsAndTemplates() throws {
         try withScratchCollection("notetypes-read") { backend, _ in
             let names = try backend.invoke(.notetypeNames)

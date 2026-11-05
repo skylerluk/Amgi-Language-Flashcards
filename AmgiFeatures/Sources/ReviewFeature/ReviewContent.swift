@@ -60,8 +60,25 @@ struct ReviewContent: View {
                     ReviewProgressBar(session: session)
                 }
 
+                if session.showAnswer, let note = session.currentNote, !session.limitReached {
+                    HStack {
+                        ProductionCardButton(note: note) { Task { await session.refreshAfterEdit() } }
+                        if let chinese = note.flds.components(separatedBy: "\u{1f}").first,
+                           chinese.range(of: "\\p{Han}", options: .regularExpression) != nil {
+                            ChineseCardAudioButton(text: chinese)
+                        }
+                    }.padding(.vertical, AmgiSpacing.xs)
+                }
                 if let startError = session.startError {
                     ReviewStartFailureView(message: startError) { session.start() }
+                } else if session.limitReached {
+                    VStack(spacing: AmgiSpacing.md) {
+                        Text("Daily goal reached").amgiFont(.sectionHeading)
+                        Text("\(session.budget.answered)/\(session.budget.limit) answers today")
+                        Text("\(session.remainingCounts.learnCount + session.remainingCounts.reviewCount) scheduled reviews remain due. Unseen cards keep their schedule.")
+                        Button("Add 20 more") { session.addTwentyMore() }.buttonStyle(.borderedProminent)
+                        Button("Finish", action: onDismiss)
+                    }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if session.isFinished {
                     ReviewFinishedView(session: session, onDone: onDismiss)
                 } else {
@@ -302,6 +319,7 @@ private struct CardActionsMenu: View {
             }
 
             Section {
+                if let note = session.currentNote { ProductionCardButton(note: note) { Task { await session.refreshAfterEdit() } } }
                 Button {
                     destination = session.currentNote.map(ReviewDestination.editNote)
                 } label: {
@@ -415,12 +433,13 @@ private struct ReviewFinishedView: View {
                 .font(.system(size: glyphSize))
                 .foregroundStyle(palette.positive)
                 .accessibilityHidden(true)   // "Congratulations!" below says it
-            Text("Congratulations!")
+            Text(session.newLimitReached ? "New cards paused" : "Session complete")
                 .amgiFont(.sectionHeading)
                 .foregroundStyle(palette.textPrimary)
             Text("You've reviewed \(session.sessionStats.reviewed) cards")
                 .amgiFont(.body)
                 .foregroundStyle(palette.textSecondary)
+            if session.newLimitReached { Text("More new cards are available for another day. Due cards may also be waiting for their next learning step.").amgiFont(.caption) }
             if session.sessionStats.reviewed > 0 {
                 Text("Accuracy: \(Int(session.sessionStats.accuracy * 100))%")
                     .amgiFont(.body)

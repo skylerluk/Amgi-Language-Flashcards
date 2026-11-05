@@ -189,7 +189,7 @@ struct AddNoteContent: View {
                 ForEach(Array(model.fieldNames.enumerated()), id: \.element) { index, name in
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
-                            Text(name)
+                            Text(name == "AmgiEnglishPrompt" ? "English prompt (optional)" : name)
                                 .amgiFont(.caption)
                                 .foregroundStyle(palette.textSecondary)
                             Spacer()

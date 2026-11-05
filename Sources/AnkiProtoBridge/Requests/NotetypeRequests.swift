@@ -47,6 +47,15 @@ extension Request where Response == Notetype {
 
 // MARK: - updateNotetype / removeNotetype
 
+extension Request where Response == NotetypeID {
+    public static func addNotetype(_ notetype: Notetype) -> Self {
+        Self(serviceId: ServiceID.notetypes, methodId: NotetypesMethod.addNotetype,
+             encode: { try notetype.toProto().serializedData() }, decode: { bytes in
+                 NotetypeID(try Anki_Collection_OpChangesWithId(serializedBytes: bytes).id)
+             })
+    }
+}
+
 extension Request where Response == Void {
     /// Persists a modified notetype.
     public static func updateNotetype(_ notetype: Notetype) -> Self {

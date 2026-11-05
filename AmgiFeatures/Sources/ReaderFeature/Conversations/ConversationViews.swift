@@ -157,6 +157,12 @@ struct ConversationListView: View {
 /// speaker icon to hear it; "+" turns the line into a flashcard with the
 /// Spanish, the English and the spoken audio already filled in.
 struct ConversationDetailView: View {
+    @State private var selectedVocabulary: SelectedVocabulary?
+    struct SelectedVocabulary: Identifiable {
+        let id = UUID()
+        let text: String
+        let context: String
+    }
     @Environment(\.palette) private var palette
     let conversation: Conversation
 
@@ -232,6 +238,12 @@ struct ConversationDetailView: View {
         .onDisappear { speaker.stop() }
         .sheet(item: $cardDraft) { item in
             AddNoteView(initialDraft: item.draft, keepsOpenAfterAdd: false) {}
+        }
+        .sheet(item: $selectedVocabulary) { item in
+            ReadingPassageSheet(text: item.text, word: item.text, language: conversation.language,
+                tags: ["conversation", conversation.language, "selected-vocabulary", "amgi::conversation::" + conversation.id, "context::" + ReadingSentenceModel.digest(item.context)],
+                source: conversation.title + "\n" + item.context, context: item.context, onAdded: {})
+                .presentationDetents([.large])
         }
         .sheet(item: $askAI) { item in
             AskAIView(conversation: conversation, initialQuestion: item.question)
@@ -323,6 +335,9 @@ struct ConversationDetailView: View {
                         },
                         onAsk: { selection in
                             askAI = AskItem(question: AIPrompts.askAboutSelection(selection, line: line.text))
+                        },
+                        onAddSelection: { selection in
+                            selectedVocabulary = SelectedVocabulary(text: selection, context: line.text)
                         }
                     )
                     if showPinyin && conversation.language.hasPrefix("zh") {

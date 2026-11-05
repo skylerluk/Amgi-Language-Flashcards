@@ -17,6 +17,7 @@ struct SelectableLineText: UIViewRepresentable {
     var onTap: () -> Void
     var onTranslate: (String) -> Void
     var onAsk: (String) -> Void
+    var onAddSelection: (String) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
@@ -89,7 +90,10 @@ struct SelectableLineText: UIViewRepresentable {
             let ask = UIAction(title: "Ask DeepSeek", image: UIImage(systemName: "sparkles")) { [weak self] _ in
                 self?.parent.onAsk(selected)
             }
-            return UIMenu(children: [translate, ask] + suggestedActions)
+            let add = UIAction(title: "Add selected text to deck", image: UIImage(systemName: "plus.rectangle.on.rectangle")) { [weak self] _ in
+                self?.parent.onAddSelection(selected)
+            }
+            return UIMenu(children: [add, translate, ask] + suggestedActions)
         }
     }
 }

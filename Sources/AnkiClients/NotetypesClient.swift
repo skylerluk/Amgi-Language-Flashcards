@@ -12,6 +12,7 @@ import Foundation
 
 @DependencyClient
 public struct NotetypesClient: Sendable {
+    public var create: @Sendable (_ notetype: Notetype) async throws -> NotetypeID
     /// Lists all notetype names + ids without expanding to full notetypes.
     public var listAll: @Sendable () async throws -> [NotetypeNameId]
 

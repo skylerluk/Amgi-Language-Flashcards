@@ -7,7 +7,7 @@
 
 import OSLog
 public import SwiftUI
-import AppCore
+public import AppCore
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -26,6 +26,11 @@ public enum ResolvedRenderMode: Equatable, Sendable {
 @Observable @MainActor
 public final class ReviewSession {
     public let deckId: DeckID
+    public let selectedDeckIDs: [DeckID]
+    public private(set) var limitReached = false
+    public private(set) var newLimitReached = false
+    public let budget = DailyStudyBudget.shared
+    private var lastWasNew = false
 
     @ObservationIgnored @Dependency(\.decksService) var decks
     @ObservationIgnored @Dependency(\.schedulerService) var scheduler
@@ -108,7 +113,7 @@ public final class ReviewSession {
     // MARK: - Session progress
 
     public var sessionTotal: Int {
-        sessionStats.reviewed + remainingCounts.total
+        sessionStats.reviewed + min(remainingCounts.total, max(0, budget.limit - budget.answered))
     }
 
     public var cardPosition: Int {
@@ -130,8 +135,9 @@ public final class ReviewSession {
 
     // MARK: - Init
 
-    public init(deckId: DeckID) {
+    public init(deckId: DeckID, selectedDeckIDs: [DeckID]? = nil) {
         self.deckId = deckId
+        self.selectedDeckIDs = selectedDeckIDs ?? [deckId]
     }
 
     // MARK: - Public interface
@@ -152,19 +158,7 @@ public final class ReviewSession {
         Task {
             defer { isAdvancing = false }
             do {
-                let (queue, name) = try await Task.detached { () -> (QueuedCardsResult, String) in
-                    try decks.setCurrentDeck(deckId)
-                    let name = (try? decks.getCurrentDeck().name) ?? ""
-                    return (try scheduler.getQueuedCards(200), name)
-                }.value
-                cardQueue = queue.cards
-                deckName = name
-                remainingCounts = DeckCounts(
-                    newCount: queue.newCount,
-                    learnCount: queue.learningCount,
-                    reviewCount: queue.reviewCount
-                )
-                Log.review.info("Started with \(self.cardQueue.count) cards, counts: new=\(queue.newCount) learn=\(queue.learningCount) review=\(queue.reviewCount)")
+                deckName = selectedDeckIDs.count > 1 ? "Selected decks" : (try await Task.detached { try decks.fetchAll().first(where: { $0.id == deckId })?.name ?? "Review" }.value)
                 await advanceToNextCard(notes: notes, notetypes: notetypes, notetypesClient: notetypesClient, cardRendering: cardRendering)
             } catch {
                 // NOT isFinished: that is the "queue ran dry" state and drives
@@ -207,7 +201,7 @@ public final class ReviewSession {
     }
 
     public func answer(rating: Rating) {
-        guard !isAdvancing, let queued = currentQueuedCard else { return }
+        guard !isAdvancing, !budget.reached, let queued = currentQueuedCard else { return }
         isAdvancing = true
 
         // ContinuousClock, not Date: a backwards wall-clock adjustment
@@ -236,11 +230,11 @@ public final class ReviewSession {
             defer { isAdvancing = false }
             await AppSignpost.measure("AnswerCard") {
                 do {
-                    let queue = try await Task.detached {
+                    try await Task.detached {
                         try scheduler.answerReviewCard(cardId, rating, timeSpent, states)
-                        return try scheduler.getQueuedCards(200)
                     }.value
-
+                    lastWasNew = queued.card.type == 0
+                    budget.record(wasNew: lastWasNew)
                     answerError = nil
                     sessionStats.reviewed += 1
                     if rating != .again { sessionStats.correct += 1 }
@@ -248,12 +242,6 @@ public final class ReviewSession {
                     lastRating = rating
                     canUndo = true
 
-                    cardQueue = queue.cards
-                    remainingCounts = DeckCounts(
-                        newCount: queue.newCount,
-                        learnCount: queue.learningCount,
-                        reviewCount: queue.reviewCount
-                    )
                     await advanceToNextCard(notes: notes, notetypes: notetypes, notetypesClient: notetypesClient, cardRendering: cardRendering)
                 } catch {
                     // Do NOT drop the card. Silently removing it from the queue
@@ -296,6 +284,7 @@ public final class ReviewSession {
                 // this screen (refreshAfterEdit) — decrementing regardless
                 // drove the counters below their true value, and negative.
                 if let last = lastRating {
+                    budget.undo(wasNew: lastWasNew)
                     sessionStats.reviewed = max(0, sessionStats.reviewed - 1)
                     if last != .again {
                         sessionStats.correct = max(0, sessionStats.correct - 1)
@@ -339,6 +328,8 @@ public final class ReviewSession {
     /// edit sheet was dismissing.
     public func refreshAfterEdit() async {
         guard let queued = currentQueuedCard else { return }
+        lastRating = nil
+        canUndo = false
         invalidatePrefetch()   // the edit may have changed a shared notetype
 
         let notes = self.notes
@@ -423,6 +414,26 @@ private extension ReviewSession {
         notetypesClient: NotetypesClient,
         cardRendering: CardRenderingService
     ) async {
+        limitReached = budget.reached
+        newLimitReached = false
+        isFinished = false
+        do {
+            let decks = self.decks
+            let scheduler = self.scheduler
+            let ids = selectedDeckIDs
+            let allowNew = budget.introduced < budget.newLimit
+            let result = try await Task.detached {
+                try Self.selectedQueue(ids: ids, allowNew: allowNew, decks: decks, scheduler: scheduler, notes: notes)
+            }.value
+            cardQueue = result.cards
+            remainingCounts = DeckCounts(newCount: result.newCount, learnCount: result.learningCount, reviewCount: result.reviewCount)
+            newLimitReached = cardQueue.isEmpty && result.newCount > 0
+            startError = nil
+        } catch {
+            startError = error.localizedDescription
+            return
+        }
+        if limitReached { invalidatePrefetch(); return }
         guard let next = cardQueue.first else {
             isFinished = true
             currentQueuedCard = nil
@@ -476,6 +487,41 @@ private extension ReviewSession {
             notetypesClient: notetypesClient,
             cardRendering: cardRendering
         )
+    }
+
+    /// Never moves cards to a filtered deck. Each answer uses Anki's original
+    /// scheduling state and the owning selected deck's queue.
+    nonisolated private static func selectedQueue(ids: [DeckID], allowNew: Bool, decks: DecksService, scheduler: SchedulerService, notes: NotesService) throws -> QueuedCardsResult {
+        let all = try decks.fetchAll()
+        let chosen = all.filter { ids.contains($0.id) }
+        let roots = chosen.filter { child in !chosen.contains { parent in parent.id != child.id && child.name.hasPrefix(parent.name + "::") } }
+        var snapshots: [(DeckID, QueuedCardsResult)] = []
+        for deck in roots {
+            try decks.setCurrentDeck(deck.id)
+            snapshots.append((deck.id, try scheduler.getQueuedCards(200)))
+        }
+        let newCount = snapshots.reduce(0) { $0 + $1.1.newCount }
+        let learn = snapshots.reduce(0) { $0 + $1.1.learningCount }
+        let review = snapshots.reduce(0) { $0 + $1.1.reviewCount }
+        let learningChoice = snapshots.first { $0.1.cards.contains { $0.card.type == 1 || $0.card.type == 3 } }
+        let dueChoice = learningChoice ?? snapshots.first { $0.1.cards.contains { $0.card.type != 0 } }
+        var choice = dueChoice
+        if choice == nil && allowNew && learn + review == 0 {
+            let query = roots.map { "deck:\"" + $0.name.replacingOccurrences(of: "\"", with: "\\\"") + "\"" }.joined(separator: " OR ")
+            let overdue = query.isEmpty ? [] : try notes.searchNoteIds("(" + query + ") is:review prop:due<0 -is:suspended -is:buried")
+            if overdue.isEmpty { choice = snapshots.first { !$0.1.cards.isEmpty } }
+        }
+        guard let choice else { return QueuedCardsResult(cards: [], newCount: newCount, learningCount: learn, reviewCount: review) }
+        try decks.setCurrentDeck(choice.0)
+        let fresh = try scheduler.getQueuedCards(200)
+        let cards = learningChoice != nil ? fresh.cards.filter { $0.card.type == 1 || $0.card.type == 3 }
+            : (dueChoice != nil ? fresh.cards.filter { $0.card.type != 0 } : fresh.cards)
+        return QueuedCardsResult(cards: cards, newCount: newCount, learningCount: learn, reviewCount: review)
+    }
+
+    public func addTwentyMore() {
+        budget.setLimit(budget.limit + 20, todayOnly: true)
+        start()
     }
 
     // MARK: - Prefetch

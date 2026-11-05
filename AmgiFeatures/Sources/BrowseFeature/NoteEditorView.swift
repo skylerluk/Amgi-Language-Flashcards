@@ -8,11 +8,13 @@
 package import SwiftUI
 package import AnkiKit
 import Theme
+import AppShared
 
 /// Edit Note container: owns the toolbar and the transient "Saved" toast, and
 /// drives a `NoteEditorModel` for the notetype lookup + note write. The form
 /// is `NoteEditorContent`, bound to the model.
 package struct NoteEditorView: View {
+    private let originalNote: NoteRecord
     @State private var model: NoteEditorModel
     let onSave: () -> Void
 
@@ -20,6 +22,7 @@ package struct NoteEditorView: View {
     @State private var savedToastTask: Task<Void, Never>?
 
     package init(note: NoteRecord, onSave: @escaping () -> Void) {
+        self.originalNote = note
         _model = State(initialValue: NoteEditorModel(note: note))
         self.onSave = onSave
     }
@@ -47,6 +50,10 @@ package struct NoteEditorView: View {
                     // toast).
                     .disabled(model.isSaving || showSavedConfirmation)
                 }
+            }
+            .safeAreaInset(edge: .bottom) {
+                ProductionCardButton(note: originalNote) { Task { await model.reloadAfterProductionCard(); onSave() } }
+                    .padding().disabled(model.isSaving || model.fieldValues != originalNote.flds.components(separatedBy: "\u{1f}"))
             }
             .overlay { savedToast }
             .task { await model.loadNote() }
@@ -87,7 +94,7 @@ struct NoteEditorContent: View {
             Section("Fields") {
                 ForEach(Array(model.fieldNames.enumerated()), id: \.element) { index, name in
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(name)
+                        Text(name == "AmgiEnglishPrompt" ? "English prompt (optional)" : name)
                             .amgiFont(.caption)
                             .foregroundStyle(palette.textSecondary)
                         RichNoteFieldEditor(htmlText: $model[fieldAt: index])

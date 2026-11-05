@@ -19,6 +19,7 @@ extension NotetypesClient: DependencyKey {
         @Dependency(\.ankiBackend) var backend
 
         return Self(
+            create: { notetype in try await backend.invoke(.addNotetype(notetype)) },
             listAll: {
                 try await backend.invoke(.notetypeNames)
             },

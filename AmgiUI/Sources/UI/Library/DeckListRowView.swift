@@ -33,6 +33,7 @@ public struct DeckListRowView: View {
     }
 
     public var body: some View {
+        HStack {
         Button(action: onTap) {
             HStack(spacing: 12) {
                 DeckTile(name: data.name, isFiltered: data.isFiltered)
@@ -56,6 +57,14 @@ public struct DeckListRowView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        Menu {
+            Button("Study this deck", systemImage: "play", action: onTap)
+            Button("Rename", systemImage: "pencil", action: onRename)
+            Button("Delete", systemImage: "trash", role: .destructive) { showDeleteAlert = true }
+        } label: { Image(systemName: "ellipsis").frame(minWidth: 44, minHeight: 44) }
+        .buttonStyle(.borderless)
+        .accessibilityLabel("Deck actions for " + data.name)
+        }
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button(role: .destructive) { showDeleteAlert = true } label: {
@@ -70,7 +79,7 @@ public struct DeckListRowView: View {
             Button("Delete", role: .destructive, action: onDelete)
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This will permanently delete the deck and all its cards.")
+            Text("This will permanently delete the deck, its subdecks, and their cards.")
         }
     }
 

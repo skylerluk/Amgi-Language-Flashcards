@@ -81,4 +81,14 @@ final class NoteEditorModel {
             return false
         }
     }
+
+    func reloadAfterProductionCard() async {
+        if let fresh = try? await noteClient.fetch(note.id) {
+            fieldValues = fresh.flds.components(separatedBy: "\u{1f}")
+            tags = fresh.tags.trimmingCharacters(in: .whitespaces)
+            let service = notetypesService
+            let mid = fresh.mid
+            if let type = try? await backendOffload({ try service.getNotetype(mid) }) { fieldNames = type.fieldNames }
+        }
+    }
 }

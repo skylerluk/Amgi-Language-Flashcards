@@ -70,6 +70,15 @@ public struct DeckGridCardView: View {
         .buttonStyle(.plain)
         .accessibilityLabel("\(data.name), \(accessibilityCounts)")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .overlay(alignment: .topTrailing) {
+            Menu {
+                Button("Study this deck", systemImage: "play", action: onTap)
+                Button("Rename", systemImage: "pencil", action: onRename)
+                Button("Delete", systemImage: "trash", role: .destructive) { showDeleteAlert = true }
+            } label: { Image(systemName: "ellipsis").frame(minWidth: 44, minHeight: 44) }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Deck actions for " + data.name)
+        }
         .contextMenu {
             Button { onRename() } label: { Label("Rename", systemImage: "pencil") }
             Button(role: .destructive) { showDeleteAlert = true } label: {
@@ -80,7 +89,7 @@ public struct DeckGridCardView: View {
             Button("Delete", role: .destructive, action: onDelete)
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This will permanently delete the deck and all its cards.")
+            Text("This will permanently delete the deck, its subdecks, and their cards.")
         }
     }
 

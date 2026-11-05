@@ -27,6 +27,7 @@ import SwiftUINavigation
 /// values and sheet bindings to the pure `ReviewContent`, which is what the
 /// `#Preview`s build with a stub session.
 package struct ReviewView: View {
+    @Dependency(\.collectionStore) private var collectionStore
     let deckId: DeckID
     let onDismiss: () -> Void
 
@@ -54,10 +55,10 @@ package struct ReviewView: View {
     @State private var session: ReviewSession
     @State private var destination: ReviewDestination?
 
-    package init(deckId: DeckID, onDismiss: @escaping () -> Void) {
+    package init(deckId: DeckID, selectedDeckIDs: [DeckID]? = nil, onDismiss: @escaping () -> Void) {
         self.deckId = deckId
         self.onDismiss = onDismiss
-        self._session = State(initialValue: ReviewSession(deckId: deckId))
+        self._session = State(initialValue: ReviewSession(deckId: deckId, selectedDeckIDs: selectedDeckIDs))
     }
 
     package var body: some View {
@@ -92,6 +93,7 @@ package struct ReviewView: View {
         }
         .onDisappear {
             ReviewAudioSession.release()
+            collectionStore.apply(CollectionChanges(card: true, note: true, studyQueues: true))
             Task { await writeWidgetSnapshot() }
         }
     }

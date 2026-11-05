@@ -1,0 +1,8 @@
+Headword levels and reference pinyin were checked against Complete HSK Vocabulary:
+https://github.com/drkameleon/complete-hsk-vocabulary
+MIT license reproduced in HSK-DATA-LICENSE.txt.
+The HSK labels use the six-level HSK 2.0 system (old-3, old-4, old-5).
+Entries were selected using the dataset's frequency ordering and edited for everyday usefulness.
+Meanings, examples, usage notes, and production prompts were drafted for Amgi and reviewed for consistency.
+The phrase pack contains original curated expressions and grammar patterns, with approximate intermediate difficulty.
+These are selected practice decks, not complete official exam wordlists or a promise of exam readiness.

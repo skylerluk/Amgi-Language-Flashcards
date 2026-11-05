@@ -23,6 +23,7 @@ import Foundation
 @MainActor
 final class DeckListModel {
     var state: LibraryListContent.State = .loading
+    var operationError: String?
 
     @ObservationIgnored @Dependency(\.deckClient) private var deckClient
     @ObservationIgnored @Dependency(\.statsClient) private var statsClient
@@ -95,6 +96,7 @@ final class DeckListModel {
             let changes = try await deckClient.delete(id)
             store.apply(changes)   // generation bump → the view's .task(id:) reloads
         } catch {
+            operationError = error.localizedDescription
             Log.decks.error("Delete failed: \(error)")
             await load()           // error path: no invalidation happened, reload manually
         }
