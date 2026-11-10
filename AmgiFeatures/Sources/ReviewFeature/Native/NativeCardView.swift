@@ -6,9 +6,13 @@
 //
 
 import SwiftUI
+import Foundation
 import UI
 import Theme
 import AmgiCardWeb
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// Native SwiftUI renderer for allowlist-simple cards (R11). Renders the
 /// side's parsed blocks on a radius-24 `AmgiCard` surface: the first text
@@ -56,19 +60,21 @@ struct NativeCardView: View {
     private func blockView(_ block: NativeCardContent.Block, isFirst: Bool) -> some View {
         switch block {
         case .text(let attributed):
-            // One `Text` with ternary modifier arguments rather than an
-            // if/else over two `Text`s: the branches differed only in font and
-            // scale factor, and `_ConditionalContent` would give the same
-            // block two structural identities.
+            #if canImport(UIKit)
+            SelectableCardText(
+                text: attributed,
+                fontSize: isFirst ? (isAnswerSide ? headwordBack : headwordFront) : bodySize,
+                emphasized: isFirst,
+                color: UIColor(palette.textPrimary)
+            )
+            #else
             Text(attributed)
-                .font(.system(
-                    size: isFirst ? (isAnswerSide ? headwordBack : headwordFront) : bodySize,
-                    weight: isFirst ? .semibold : .regular,
-                    design: .serif
-                ))
-                .minimumScaleFactor(isFirst ? 0.5 : 1)
+                .font(.system(size: isFirst ? (isAnswerSide ? headwordBack : headwordFront) : bodySize,
+                              weight: isFirst ? .semibold : .regular, design: .serif))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(palette.textPrimary)
+                .textSelection(.enabled)
+            #endif
         case .image(let filename):
             // Decoded and downsampled off the main thread — a full-resolution
             // decode here lands squarely in the answer-reveal frame.
@@ -91,6 +97,60 @@ struct NativeCardView: View {
         }
     }
 }
+
+#if canImport(UIKit)
+/// UITextView exposes iOS's selection handles and Look Up / Translate menu,
+/// including selection of individual Chinese words inside an example sentence.
+private struct SelectableCardText: UIViewRepresentable {
+    let text: AttributedString
+    let fontSize: CGFloat
+    let emphasized: Bool
+    let color: UIColor
+
+    func makeUIView(context: Context) -> UITextView {
+        let view = UITextView()
+        view.isEditable = false
+        view.isSelectable = true
+        view.isScrollEnabled = false
+        view.backgroundColor = .clear
+        view.textContainerInset = .zero
+        view.textContainer.lineFragmentPadding = 0
+        view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        return view
+    }
+
+    func updateUIView(_ view: UITextView, context: Context) {
+        let value = NSMutableAttributedString(text)
+        let range = NSRange(location: 0, length: value.length)
+        var offset = 0
+        for run in text.runs {
+            let length = String(text[run.range].characters).utf16.count
+            let intent = run.inlinePresentationIntent ?? []
+            let font = UIFont.systemFont(ofSize: fontSize,
+                weight: emphasized || intent.contains(.stronglyEmphasized) ? .semibold : .regular)
+            var descriptor = font.fontDescriptor.withDesign(.serif) ?? font.fontDescriptor
+            if intent.contains(.emphasized) {
+                descriptor = descriptor.withSymbolicTraits(descriptor.symbolicTraits.union(.traitItalic)) ?? descriptor
+            }
+            value.addAttribute(.font, value: UIFont(descriptor: descriptor, size: fontSize),
+                               range: NSRange(location: offset, length: length))
+            offset += length
+        }
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        value.addAttributes([.foregroundColor: color, .paragraphStyle: paragraph], range: range)
+        if !view.attributedText.isEqual(to: value) {
+            view.attributedText = value
+        }
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
+        let width = proposal.width ?? 280
+        let fit = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
+        return CGSize(width: width, height: ceil(fit.height))
+    }
+}
+#endif
 
 #if DEBUG
 #Preview("Front") {
